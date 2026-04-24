@@ -14,18 +14,10 @@ from xml.etree import ElementTree
 
 import requests
 
+from app.config import settings
 from app.db import get_session
 
 logger = logging.getLogger(__name__)
-
-SYMBOL_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "AAPL": ("apple", "iphone", "ios", "mac"),
-    "MSFT": ("microsoft", "azure", "windows", "xbox"),
-    "GOOGL": ("google", "alphabet", "android", "youtube"),
-    "AMZN": ("amazon", "aws", "prime"),
-    "NVDA": ("nvidia", "gpu", "ai chip", "cuda"),
-    "TSLA": ("tesla", "ev", "model y", "autopilot"),
-}
 
 POSITIVE_TERMS = {
     "beats",
@@ -176,7 +168,9 @@ def store_news_items(items: list[NewsItem]) -> int:
 
 
 def collect_and_store(source: NewsSource) -> int:
-    return store_news_items(source.fetch())
+    items = source.fetch()
+    _log_related_symbols_sample(items, sample_size=20)
+    return store_news_items(items)
 
 
 def _hash_title(title: str) -> str:
@@ -185,12 +179,40 @@ def _hash_title(title: str) -> str:
 
 def _extract_symbols(text: str) -> list[str]:
     lowered = text.lower()
+    compact = lowered.replace(" ", "")
     matched = [
         symbol
-        for symbol, keywords in SYMBOL_KEYWORDS.items()
-        if any(keyword in lowered for keyword in keywords)
+        for symbol, keywords in settings.symbol_keywords.items()
+        if any(_keyword_match(keyword, lowered, compact) for keyword in keywords)
     ]
     return sorted(set(matched))
+
+
+def _keyword_match(keyword: str, lowered: str, compact: str) -> bool:
+    normalized = keyword.lower().strip()
+    if not normalized:
+        return False
+    normalized_compact = normalized.replace(" ", "")
+    return normalized in lowered or normalized_compact in compact
+
+
+def _log_related_symbols_sample(items: list[NewsItem], sample_size: int = 20) -> None:
+    if not items:
+        logger.info("Related symbol mapping sample skipped: no news items.")
+        return
+
+    logger.info(
+        "Related symbol mapping quality sample (size=%s, total=%s)",
+        min(len(items), sample_size),
+        len(items),
+    )
+    for index, item in enumerate(items[:sample_size], start=1):
+        logger.info(
+            "[sample:%02d] symbols=%s title=%s",
+            index,
+            ",".join(item.related_symbols) or "-",
+            item.title,
+        )
 
 
 def _rule_based_sentiment(text: str) -> float:
