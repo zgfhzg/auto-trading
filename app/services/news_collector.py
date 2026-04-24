@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,28 +21,28 @@ from app.db import get_session
 logger = logging.getLogger(__name__)
 
 POSITIVE_TERMS = {
-    "beats",
-    "surge",
-    "record",
-    "upgrade",
-    "growth",
-    "profit",
-    "bullish",
-    "strong",
-    "outperform",
-    "win",
+    "호재",
+    "상승",
+    "급등",
+    "강세",
+    "성장",
+    "흑자",
+    "개선",
+    "최고",
+    "돌파",
+    "매수",
 }
 NEGATIVE_TERMS = {
-    "miss",
-    "drop",
-    "downgrade",
-    "lawsuit",
-    "loss",
-    "bearish",
-    "weak",
-    "fraud",
-    "cut",
-    "decline",
+    "악재",
+    "하락",
+    "급락",
+    "약세",
+    "적자",
+    "부진",
+    "손실",
+    "최저",
+    "이탈",
+    "매도",
 }
 
 
@@ -216,11 +217,48 @@ def _log_related_symbols_sample(items: list[NewsItem], sample_size: int = 20) ->
 
 
 def _rule_based_sentiment(text: str) -> float:
-    words = text.lower().replace("-", " ").split()
-    pos_hits = sum(1 for word in words if word in POSITIVE_TERMS)
-    neg_hits = sum(1 for word in words if word in NEGATIVE_TERMS)
-    score = (pos_hits - neg_hits) / max(pos_hits + neg_hits, 1)
-    return max(-1.0, min(1.0, score))
+    try:
+        normalized_text = _normalize_sentiment_text(text)
+        compact_text = normalized_text.replace(" ", "")
+        tokens = set(normalized_text.split())
+
+        pos_hits = _count_sentiment_hits(POSITIVE_TERMS, compact_text, tokens)
+        neg_hits = _count_sentiment_hits(NEGATIVE_TERMS, compact_text, tokens)
+
+        total_hits = pos_hits + neg_hits
+        score = (pos_hits - neg_hits) / max(total_hits, 1)
+        return _clamp(score, lower=-1.0, upper=1.0)
+    except Exception:
+        logger.exception("Sentiment analysis failed. Returning neutral score.")
+        return 0.0
+
+
+def _normalize_sentiment_text(text: str) -> str:
+    lowered = text.lower().replace("-", " ")
+    normalized = re.sub(r"[^\w\s]", " ", lowered)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _count_sentiment_hits(
+    terms: set[str],
+    compact_text: str,
+    tokens: set[str],
+) -> int:
+    hits = 0
+    for term in terms:
+        normalized_term = _normalize_sentiment_text(term)
+        if not normalized_term:
+            continue
+        compact_term = normalized_term.replace(" ", "")
+        token_match = normalized_term in tokens
+        substring_match = compact_term and compact_term in compact_text
+        if token_match or substring_match:
+            hits += 1
+    return hits
+
+
+def _clamp(value: float, *, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
 
 
 def _normalize_timestamp(value: str) -> str:
