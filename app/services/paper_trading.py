@@ -240,9 +240,46 @@ def get_return_report(limit: int = 30) -> dict:
             (max(limit, 1),),
         ).fetchall()
 
+        symbol_realized_rows = conn.execute(
+            """
+            SELECT symbol, SUM(realized_pnl) AS realized_pnl
+            FROM trades
+            WHERE is_live = 0
+            GROUP BY symbol
+            ORDER BY symbol
+            """
+        ).fetchall()
+
+        sell_trade_rows = conn.execute(
+            """
+            SELECT realized_pnl
+            FROM trades
+            WHERE is_live = 0 AND side = 'SELL'
+            """
+        ).fetchall()
+
+    summary = get_account_summary()
+    daily_snapshots = [dict(row) for row in snapshots]
+    today_return = float(daily_snapshots[0]["daily_return"]) if daily_snapshots else 0.0
+
+    symbol_returns = _build_symbol_returns(
+        symbol_realized_rows=symbol_realized_rows,
+        positions=summary.get("positions", []),
+    )
+
+    win_rate, avg_win, avg_loss = _aggregate_trade_stats(sell_trade_rows)
+    mdd = _calculate_max_drawdown(daily_snapshots)
+
     return {
-        "summary": get_account_summary(),
-        "daily_snapshots": [dict(row) for row in snapshots],
+        "summary": summary,
+        "daily_snapshots": daily_snapshots,
+        "today_return": today_return,
+        "cumulative_return": float(summary.get("cumulative_return", 0.0)),
+        "symbol_returns": symbol_returns,
+        "win_rate": win_rate,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+        "mdd": mdd,
     }
 
 
@@ -369,3 +406,70 @@ def _validate_sell_inputs(symbol: str, quantity: int, price: float, reason: str)
         raise ValueError("price must be positive")
     if not reason or not reason.strip():
         raise ValueError("reason is required")
+
+
+def _build_symbol_returns(symbol_realized_rows, positions: list[dict]) -> list[dict]:
+    symbol_map: dict[str, dict[str, float]] = {}
+
+    for row in symbol_realized_rows:
+        symbol = str(row["symbol"])
+        symbol_map[symbol] = {
+            "realized_pnl": float(row["realized_pnl"] or 0.0),
+            "unrealized_pnl": 0.0,
+        }
+
+    for position in positions:
+        symbol = str(position.get("symbol", "")).upper()
+        if not symbol:
+            continue
+        bucket = symbol_map.setdefault(symbol, {"realized_pnl": 0.0, "unrealized_pnl": 0.0})
+        bucket["unrealized_pnl"] = float(position.get("unrealized_pnl", 0.0) or 0.0)
+
+    results = []
+    for symbol in sorted(symbol_map):
+        realized = float(symbol_map[symbol]["realized_pnl"])
+        unrealized = float(symbol_map[symbol]["unrealized_pnl"])
+        results.append(
+            {
+                "symbol": symbol,
+                "realized_pnl": realized,
+                "unrealized_pnl": unrealized,
+                "total_pnl": realized + unrealized,
+            }
+        )
+
+    return results
+
+
+def _aggregate_trade_stats(sell_trade_rows) -> tuple[float, float, float]:
+    pnl_values = [float(row["realized_pnl"] or 0.0) for row in sell_trade_rows]
+    if not pnl_values:
+        return 0.0, 0.0, 0.0
+
+    wins = [pnl for pnl in pnl_values if pnl > 0]
+    losses = [pnl for pnl in pnl_values if pnl < 0]
+    win_rate = (len(wins) / len(pnl_values)) if pnl_values else 0.0
+    avg_win = (sum(wins) / len(wins)) if wins else 0.0
+    avg_loss = (sum(losses) / len(losses)) if losses else 0.0
+    return win_rate, avg_win, avg_loss
+
+
+def _calculate_max_drawdown(daily_snapshots: list[dict]) -> float:
+    if not daily_snapshots:
+        return 0.0
+
+    snapshots_asc = list(reversed(daily_snapshots))
+    peak = 0.0
+    max_drawdown = 0.0
+
+    for snapshot in snapshots_asc:
+        equity = float(snapshot.get("equity", 0.0) or 0.0)
+        if equity > peak:
+            peak = equity
+        if peak <= 0:
+            continue
+        drawdown = (peak - equity) / peak
+        if drawdown > max_drawdown:
+            max_drawdown = drawdown
+
+    return max_drawdown
