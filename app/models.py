@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS trades (
     symbol TEXT NOT NULL,
     side TEXT NOT NULL,
     quantity INTEGER NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
     price REAL NOT NULL,
     gross_amount REAL NOT NULL,
     fee REAL NOT NULL DEFAULT 0,

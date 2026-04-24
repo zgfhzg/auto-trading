@@ -31,9 +31,14 @@ def initialize_account(initial_cash: float | None = None, *, reset: bool = False
     return get_account_summary()
 
 
-def simulate_buy(symbol: str, quantity: int, price: float) -> dict:
-    _validate_order_inputs(symbol, quantity, price)
+def simulate_buy(symbol: str, price: float, budget: float, reason: str) -> dict:
+    _validate_buy_inputs(symbol, price, budget, reason)
     symbol_upper = symbol.upper()
+    unit_cost = price * (1 + settings.commission_rate + settings.tax_rate)
+    quantity = int(budget // unit_cost)
+    if quantity <= 0:
+        raise ValueError("Budget is too small to buy at least one share")
+
     gross_amount = quantity * price
     fee = gross_amount * settings.commission_rate
     tax = gross_amount * settings.tax_rate
@@ -100,14 +105,15 @@ def simulate_buy(symbol: str, quantity: int, price: float) -> dict:
             tax=tax,
             net_amount=required_cash,
             realized_pnl=0.0,
+            reason=reason,
             is_live=False,
         )
 
     return get_account_summary()
 
 
-def simulate_sell(symbol: str, quantity: int, price: float) -> dict:
-    _validate_order_inputs(symbol, quantity, price)
+def simulate_sell(symbol: str, price: float, quantity: int, reason: str) -> dict:
+    _validate_sell_inputs(symbol, quantity, price, reason)
     symbol_upper = symbol.upper()
     gross_amount = quantity * price
     fee = gross_amount * settings.commission_rate
@@ -161,6 +167,7 @@ def simulate_sell(symbol: str, quantity: int, price: float) -> dict:
             tax=tax,
             net_amount=net_amount,
             realized_pnl=realized_pnl,
+            reason=reason,
             is_live=False,
         )
 
@@ -318,17 +325,19 @@ def _record_trade(
     tax: float,
     net_amount: float,
     realized_pnl: float,
+    reason: str,
     is_live: bool,
 ) -> None:
     conn.execute(
         """
-        INSERT INTO trades(symbol, side, quantity, price, gross_amount, fee, tax, net_amount, realized_pnl, is_live)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO trades(symbol, side, quantity, reason, price, gross_amount, fee, tax, net_amount, realized_pnl, is_live)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             symbol,
             side,
             quantity,
+            reason,
             price,
             gross_amount,
             fee,
@@ -340,10 +349,23 @@ def _record_trade(
     )
 
 
-def _validate_order_inputs(symbol: str, quantity: int, price: float) -> None:
+def _validate_buy_inputs(symbol: str, price: float, budget: float, reason: str) -> None:
+    if not symbol or not symbol.strip():
+        raise ValueError("symbol is required")
+    if price <= 0:
+        raise ValueError("price must be positive")
+    if budget <= 0:
+        raise ValueError("budget must be positive")
+    if not reason or not reason.strip():
+        raise ValueError("reason is required")
+
+
+def _validate_sell_inputs(symbol: str, quantity: int, price: float, reason: str) -> None:
     if not symbol or not symbol.strip():
         raise ValueError("symbol is required")
     if quantity <= 0:
         raise ValueError("quantity must be positive")
     if price <= 0:
         raise ValueError("price must be positive")
+    if not reason or not reason.strip():
+        raise ValueError("reason is required")
