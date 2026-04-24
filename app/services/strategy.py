@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.services.kakao_notifications import news_crash_forced_sell_event, publish_kakao_event
 from app.services.news_signal import get_news_score
 
 
@@ -36,6 +37,23 @@ def generate_signal(
         signal = "HOLD"
         reason = "buy_blocked_by_negative_news"
 
+    liquidation_candidates = []
+    if forced_sell_review:
+        liquidation_candidates = [
+            {
+                "symbol": symbol.upper(),
+                "reason": reason,
+                "news_score": news_score,
+            }
+        ]
+        publish_kakao_event(
+            news_crash_forced_sell_event(
+                symbol=symbol,
+                news_score=news_score,
+                reason=reason,
+            )
+        )
+
     return {
         "symbol": symbol.upper(),
         "signal": signal,
@@ -51,4 +69,28 @@ def generate_signal(
             "new_buy_blocked": new_buy_blocked,
             "forced_sell_review": forced_sell_review,
         },
+        "liquidation_candidates": liquidation_candidates,
     }
+
+
+def build_liquidation_candidates(positions: list[dict]) -> list[dict]:
+    """Build liquidation candidates from held positions by news crash rule."""
+    candidates: list[dict] = []
+    for position in positions:
+        symbol = str(position.get("symbol", "")).upper()
+        quantity = int(position.get("quantity", 0))
+        if not symbol or quantity <= 0:
+            continue
+
+        signal = generate_signal(symbol, has_position=True)
+        if signal["guards"]["forced_sell_review"]:
+            candidates.append(
+                {
+                    "symbol": symbol,
+                    "quantity": quantity,
+                    "reason": signal["reason"],
+                    "news_score": signal["score"]["news"],
+                }
+            )
+
+    return candidates

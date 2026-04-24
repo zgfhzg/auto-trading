@@ -21,6 +21,8 @@ sys.modules.setdefault(
             paper_trading_initial_cash=1_000_000,
             commission_rate=0.00015,
             tax_rate=0.0018,
+            daily_max_loss_limit=50_000.0,
+            max_holdings=8,
         )
     ),
 )
@@ -70,6 +72,7 @@ def test_paper_mode_never_calls_live_api(monkeypatch: pytest.MonkeyPatch) -> Non
         "settings",
         SimpleNamespace(paper_trading_enabled=True, enable_live_trading=True),
     )
+    monkeypatch.setattr(order_service, "can_open_new_position", lambda *_: {"allowed": True, "reason": "ok"})
     monkeypatch.setattr(order_service, "simulate_buy", lambda *args, **kwargs: {"cash": 1_000_000})
     monkeypatch.setattr(
         order_service,
@@ -81,6 +84,28 @@ def test_paper_mode_never_calls_live_api(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert result["mode"] == "paper"
     assert result["side"] == "BUY"
+
+
+def test_place_order_blocks_buy_when_risk_manager_rejects(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        order_service,
+        "settings",
+        SimpleNamespace(paper_trading_enabled=True, enable_live_trading=False),
+    )
+    monkeypatch.setattr(
+        order_service,
+        "can_open_new_position",
+        lambda *_: {"allowed": False, "reason": "max_holdings_reached", "limits": {"max_holdings": 1}},
+    )
+
+    published_events: list[dict] = []
+    monkeypatch.setattr(order_service, "publish_kakao_event", lambda event: published_events.append(event))
+
+    with pytest.raises(RuntimeError, match="BUY blocked by risk manager"):
+        order_service.place_order("AAPL", "BUY", 1, 100.0)
+
+    assert published_events
+    assert published_events[0]["event_type"] == "risk_blocked"
 
 
 def test_simulate_buy_budget_calculates_quantity_and_records_reason(

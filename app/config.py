@@ -85,6 +85,10 @@ class Settings:
     trade_interval_seconds: int = _as_int(
         os.getenv("TRADE_INTERVAL_SECONDS"), default=60
     )
+    daily_max_loss_limit: float = _as_float(
+        os.getenv("DAILY_MAX_LOSS_LIMIT"), default=50_000.0
+    )
+    max_holdings: int = _as_int(os.getenv("MAX_HOLDINGS"), default=8)
     sqlite_db_path: str = os.getenv("SQLITE_DB_PATH", "trading.db")
     symbol_keywords: dict[str, list[str]] = _as_json_dict(
         os.getenv("SYMBOL_KEYWORDS_JSON"),

@@ -4,13 +4,27 @@ from __future__ import annotations
 
 from app.config import settings
 from app.db import get_session
+from app.services.kakao_notifications import publish_kakao_event, risk_blocked_event
 from app.services.paper_trading import simulate_buy, simulate_sell
+from app.services.risk_manager import can_open_new_position
 
 
 def place_order(symbol: str, side: str, quantity: int, price: float, reason: str = "manual") -> dict:
     normalized_side = side.upper()
     if normalized_side not in {"BUY", "SELL"}:
         raise ValueError("side must be BUY or SELL")
+
+    if normalized_side == "BUY":
+        risk_check = can_open_new_position(symbol)
+        if not risk_check["allowed"]:
+            publish_kakao_event(
+                risk_blocked_event(
+                    symbol=symbol,
+                    reason=risk_check["reason"],
+                    details=risk_check.get("limits", {}),
+                )
+            )
+            raise RuntimeError(f"BUY blocked by risk manager: {risk_check['reason']}")
 
     if settings.paper_trading_enabled:
         result = (
