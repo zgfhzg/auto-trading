@@ -6,17 +6,12 @@ import json
 
 from fastapi import APIRouter, Query
 
+from app.config import settings
 from app.db import get_session
 from app.services.news_collector import RssNewsSource, collect_and_store
 from app.services.news_signal import get_news_score
 
 router = APIRouter(prefix="/news", tags=["news"])
-
-DEFAULT_FEEDS = [
-    "https://feeds.reuters.com/reuters/businessNews",
-    "https://feeds.reuters.com/reuters/technologyNews",
-]
-
 
 @router.get("")
 def list_news(limit: int = Query(default=50, ge=1, le=200)) -> dict:
@@ -70,7 +65,7 @@ def list_news_by_symbol(
 
 @router.post("/collect")
 def collect_news() -> dict:
-    source = RssNewsSource(feed_urls=DEFAULT_FEEDS)
+    source = RssNewsSource(feed_urls=settings.news_feed_urls)
     inserted = collect_and_store(source)
     return {"inserted": inserted}
 
