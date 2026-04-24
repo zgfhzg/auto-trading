@@ -7,7 +7,7 @@
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install fastapi uvicorn
+pip install fastapi uvicorn requests
 uvicorn app.main:app --reload
 ```
 
@@ -41,6 +41,9 @@ uvicorn app.main:app --reload
 ## 기본 API
 
 - `GET /health`
-- `GET /news/`
+- `GET /news`
+- `GET /news/{symbol}`
+- `GET /news/score/{symbol}`
+- `POST /news/collect`
 - `GET /paper/portfolio`
 - `GET /paper/signal/{symbol}`
