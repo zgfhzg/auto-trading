@@ -16,6 +16,8 @@ import requests
 
 from app.config import settings
 from app.db import get_session
+from app.services.kakao_notifications import extreme_news_score_event, publish_kakao_event
+from app.services.news_signal import get_news_score
 from app.services.news_symbols import serialize_related_symbols
 
 logger = logging.getLogger(__name__)
@@ -171,7 +173,26 @@ def store_news_items(items: list[NewsItem]) -> int:
 def collect_and_store(source: NewsSource) -> int:
     items = source.fetch()
     _log_related_symbols_sample(items, sample_size=20)
-    return store_news_items(items)
+    inserted = store_news_items(items)
+    _notify_extreme_news_scores(items)
+    return inserted
+
+
+def _notify_extreme_news_scores(items: list[NewsItem], threshold: float = 0.8) -> None:
+    if not items:
+        return
+
+    symbols = {
+        symbol.upper()
+        for item in items
+        for symbol in item.related_symbols
+        if symbol
+    }
+    for symbol in sorted(symbols):
+        score = get_news_score(symbol)
+        if abs(score) < threshold:
+            continue
+        publish_kakao_event(extreme_news_score_event(symbol=symbol, news_score=score))
 
 
 def _hash_title(title: str) -> str:

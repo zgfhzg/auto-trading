@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from app.services.kakao_notifications import news_crash_forced_sell_event, publish_kakao_event
+from app.services.kakao_notifications import (
+    high_risk_news_crash_event,
+    news_crash_forced_sell_event,
+    publish_kakao_event,
+)
 from app.services.news_signal import get_news_score
 
 
@@ -48,6 +52,13 @@ def generate_signal(
         ]
         publish_kakao_event(
             news_crash_forced_sell_event(
+                symbol=symbol,
+                news_score=news_score,
+                reason=reason,
+            )
+        )
+        publish_kakao_event(
+            high_risk_news_crash_event(
                 symbol=symbol,
                 news_score=news_score,
                 reason=reason,
