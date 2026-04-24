@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS news_items (
     title TEXT NOT NULL,
     content TEXT,
     source TEXT,
-    related_symbols TEXT NOT NULL DEFAULT '[]',
+    related_symbols TEXT NOT NULL DEFAULT '',
     sentiment_score REAL NOT NULL DEFAULT 0.0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     title_hash TEXT NOT NULL UNIQUE

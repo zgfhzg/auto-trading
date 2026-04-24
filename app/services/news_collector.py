@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
 import time
@@ -17,6 +16,7 @@ import requests
 
 from app.config import settings
 from app.db import get_session
+from app.services.news_symbols import serialize_related_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +159,7 @@ def store_news_items(items: list[NewsItem]) -> int:
                     item.title,
                     item.content,
                     item.source,
-                    json.dumps(item.related_symbols, ensure_ascii=False),
+                    serialize_related_symbols(item.related_symbols),
                     item.sentiment_score,
                     item.title_hash,
                 ),
