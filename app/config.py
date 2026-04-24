@@ -99,6 +99,10 @@ class Settings:
         default=DEFAULT_NEWS_FEED_URLS,
     )
 
+    kakao_access_token: str = os.getenv("KAKAO_ACCESS_TOKEN", "")
+    kakao_api_url: str = os.getenv("KAKAO_API_URL", "https://kapi.kakao.com/v2/api/talk/memo/default/send")
+    kakao_timeout_seconds: int = _as_int(os.getenv("KAKAO_TIMEOUT_SECONDS"), default=5)
+
     def validate(self) -> None:
         if self.paper_trading_enabled and self.enable_live_trading:
             raise RuntimeError(

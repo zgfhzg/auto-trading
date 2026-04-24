@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from app.config import settings
 from app.db import get_session
-from app.services.kakao_notifications import publish_kakao_event, risk_blocked_event
+from app.services.kakao_notifications import (
+    news_based_trade_event,
+    publish_kakao_event,
+    risk_blocked_event,
+)
+from app.services.news_signal import get_news_score
 from app.services.paper_trading import simulate_buy, simulate_sell
 from app.services.risk_manager import can_open_new_position
 
@@ -32,6 +37,12 @@ def place_order(symbol: str, side: str, quantity: int, price: float, reason: str
             if normalized_side == "BUY"
             else simulate_sell(symbol, price, quantity, reason)
         )
+        _notify_news_based_trade(
+            symbol=symbol,
+            side=normalized_side,
+            quantity=quantity,
+            reason=reason,
+        )
         return {"mode": "paper", "side": normalized_side, "summary": result}
 
     if not settings.enable_live_trading:
@@ -39,6 +50,12 @@ def place_order(symbol: str, side: str, quantity: int, price: float, reason: str
 
     execution = _execute_live_order(symbol.upper(), normalized_side, quantity, price)
     _record_live_trade(symbol.upper(), normalized_side, quantity, price, reason)
+    _notify_news_based_trade(
+        symbol=symbol,
+        side=normalized_side,
+        quantity=quantity,
+        reason=reason,
+    )
     return {"mode": "live", "execution": execution}
 
 
@@ -64,3 +81,18 @@ def _record_live_trade(symbol: str, side: str, quantity: int, price: float, reas
             """,
             (symbol, side, quantity, reason, price, gross_amount, gross_amount),
         )
+
+
+def _notify_news_based_trade(symbol: str, side: str, quantity: int, reason: str) -> None:
+    if "news" not in reason.lower():
+        return
+
+    news_score = get_news_score(symbol)
+    publish_kakao_event(
+        news_based_trade_event(
+            symbol=symbol,
+            side=side,
+            news_score=news_score,
+            quantity=quantity,
+        )
+    )
