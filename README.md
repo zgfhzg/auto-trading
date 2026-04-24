@@ -45,5 +45,7 @@ uvicorn app.main:app --reload
 - `GET /news/{symbol}`
 - `GET /news/score/{symbol}`
 - `POST /news/collect`
-- `GET /paper/portfolio`
-- `GET /paper/signal/{symbol}`
+- `GET /paper/account`
+- `GET /paper/positions`
+- `GET /paper/report`
+- `POST /paper/reset`
