@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import json
+from datetime import datetime, timedelta, timezone
+
 
 from fastapi import APIRouter, Query
 
@@ -10,6 +11,7 @@ from app.config import settings
 from app.db import get_session
 from app.services.news_collector import RssNewsSource, collect_and_store
 from app.services.news_signal import get_news_score
+from app.services.news_symbols import parse_related_symbols
 
 router = APIRouter(prefix="/news", tags=["news"])
 
@@ -42,17 +44,19 @@ def list_news_by_symbol(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict:
     symbol_upper = symbol.upper()
+    cutoff = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+
     with get_session() as conn:
         rows = conn.execute(
             """
             SELECT id, timestamp, title, content, source,
                    related_symbols, sentiment_score, created_at
             FROM news_items
-            WHERE timestamp >= datetime('now', ?)
+            WHERE timestamp >= ?
             ORDER BY timestamp DESC
             LIMIT ?
             """,
-            (f"-{hours} hours", limit),
+            (cutoff, limit),
         ).fetchall()
 
     filtered = []
@@ -71,9 +75,7 @@ def collect_news() -> dict:
 
 
 def _row_to_dict(row) -> dict:
-    related_symbols = row["related_symbols"]
-    if isinstance(related_symbols, str):
-        related_symbols = json.loads(related_symbols)
+    related_symbols = parse_related_symbols(row["related_symbols"])
 
     return {
         "id": row["id"],

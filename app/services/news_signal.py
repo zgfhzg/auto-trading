@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 from datetime import datetime, timezone, timedelta
 
 from app.db import get_session
+from app.services.news_symbols import parse_related_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +35,7 @@ def get_news_score(symbol: str, hours: int = 6) -> float:
     filtered: list[tuple[datetime, float]] = []
     target = symbol.upper()
     for row in rows:
-        try:
-            related_symbols = json.loads(row["related_symbols"] or "[]")
-        except json.JSONDecodeError:
-            related_symbols = []
+        related_symbols = parse_related_symbols(row["related_symbols"])
         if target not in related_symbols:
             continue
 
