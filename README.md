@@ -20,6 +20,7 @@ uvicorn app.main:app --reload
 - `PAPER_TRADING_INITIAL_CASH=1000000`
 - `COMMISSION_RATE=0.00015`
 - `TAX_RATE=0.0018`
+- `TRADE_INTERVAL_SECONDS=60`
 - `SQLITE_DB_PATH=trading.db`
 
 필요 시 실행 전에 환경변수로 재정의할 수 있습니다.
