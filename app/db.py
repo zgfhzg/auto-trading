@@ -29,6 +29,16 @@ def get_session() -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
+def _ensure_trades_is_live_column(conn: sqlite3.Connection) -> None:
+    columns = conn.execute("PRAGMA table_info(trades)").fetchall()
+    if not columns:
+        return
+    has_is_live = any(col[1] == "is_live" for col in columns)
+    if not has_is_live:
+        conn.execute("ALTER TABLE trades ADD COLUMN is_live INTEGER NOT NULL DEFAULT 0")
+
+
 def init_db() -> None:
     with get_session() as conn:
         conn.executescript(SCHEMA_SQL)
+        _ensure_trades_is_live_column(conn)

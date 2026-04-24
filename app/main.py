@@ -6,6 +6,7 @@ from app.api.news import router as news_router
 from app.api.paper_trading import router as paper_trading_router
 from app.config import settings
 from app.db import init_db
+from app.services.paper_trading import initialize_account
 
 
 def create_app() -> FastAPI:
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     def _startup() -> None:
         settings.validate()
         init_db()
+        initialize_account()
 
     app.include_router(news_router)
     app.include_router(paper_trading_router)
