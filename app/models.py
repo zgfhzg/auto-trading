@@ -1,13 +1,16 @@
 """SQLite table definitions used by the bootstrap schema initializer."""
 
 SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS news_articles (
+CREATE TABLE IF NOT EXISTS news_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
     title TEXT NOT NULL,
+    content TEXT,
     source TEXT,
-    published_at TEXT,
-    summary TEXT,
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    related_symbols TEXT NOT NULL DEFAULT '[]',
+    sentiment_score REAL NOT NULL DEFAULT 0.0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    title_hash TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS paper_orders (
