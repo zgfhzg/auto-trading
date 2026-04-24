@@ -82,6 +82,9 @@ class Settings:
     )
     commission_rate: float = _as_float(os.getenv("COMMISSION_RATE"), default=0.00015)
     tax_rate: float = _as_float(os.getenv("TAX_RATE"), default=0.0018)
+    trade_interval_seconds: int = _as_int(
+        os.getenv("TRADE_INTERVAL_SECONDS"), default=60
+    )
     sqlite_db_path: str = os.getenv("SQLITE_DB_PATH", "trading.db")
     symbol_keywords: dict[str, list[str]] = _as_json_dict(
         os.getenv("SYMBOL_KEYWORDS_JSON"),

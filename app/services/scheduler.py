@@ -23,17 +23,13 @@ def register_news_collection_jobs(
 ) -> None:
     """Register news collection tasks while keeping trading loop resilient."""
 
-    def _safe_collect() -> None:
-        try:
-            inserted = collect_news_func()
-            logger.info("News collection finished. inserted=%s", inserted)
-        except Exception:
-            logger.exception(
-                "News collection failed. Trading loop should continue without interruption."
-            )
+    safe_collect = _safe_job_wrapper(
+        job_name="news collection",
+        job_func=collect_news_func,
+    )
 
     scheduler.add_job(
-        _safe_collect,
+        safe_collect,
         trigger="cron",
         hour=8,
         minute=30,
@@ -43,9 +39,40 @@ def register_news_collection_jobs(
 
     if enable_10min_update:
         scheduler.add_job(
-            _safe_collect,
+            safe_collect,
             trigger="interval",
             minutes=10,
             id="news_collect_every_10m",
             replace_existing=True,
         )
+
+
+def register_trading_loop_job(
+    scheduler: SchedulerLike,
+    trading_loop_func: Callable[[], None],
+    *,
+    interval_seconds: int,
+) -> None:
+    """Register auto-trading loop task using an interval trigger."""
+    safe_trading_loop = _safe_job_wrapper(
+        job_name="auto trading loop",
+        job_func=trading_loop_func,
+    )
+    scheduler.add_job(
+        safe_trading_loop,
+        trigger="interval",
+        seconds=interval_seconds,
+        id="auto_trading_loop",
+        replace_existing=True,
+    )
+
+
+def _safe_job_wrapper(job_name: str, job_func: Callable[[], object]) -> Callable[[], None]:
+    def _safe_job() -> None:
+        try:
+            result = job_func()
+            logger.info("%s finished. result=%s", job_name.capitalize(), result)
+        except Exception:
+            logger.exception("%s failed. Other scheduler jobs continue.", job_name.capitalize())
+
+    return _safe_job
